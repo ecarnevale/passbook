@@ -12,19 +12,23 @@ module Rack
         when 'device_register_delete'
           if env['REQUEST_METHOD'] == 'POST'
             [Passbook::PassbookNotification.
-              register_pass(method_and_params[:params].merge! JSON.parse(env['rack.input'].read 1000))[:status], 
+              register_pass(method_and_params[:params].merge! JSON.parse(env['rack.input'].read 1000))[:status],
               {}, ['']]
           elsif env['REQUEST_METHOD'] == 'DELETE'
             [Passbook::PassbookNotification.unregister_pass(method_and_params[:params])[:status], {}, {}]
           end
         when 'passes_for_device'
           response = Passbook::PassbookNotification.passes_for_device(method_and_params[:params])
-          [response ? 200 : 204, {}, [response.to_json]]
+          headers = {}
+          if response && response['lastUpdated']
+            headers = {'Last-Modified' => response['lastUpdated'] }
+          end
+          [response ? 200 : 204, headers, [response.to_json]]
         when 'latest_pass'
           response = Passbook::PassbookNotification.latest_pass(method_and_params[:params])
           if response
-            [200, {'Content-Type' => 'application/vnd.apple.pkpass', 
-              'Content-Disposition' => 'attachment', 
+            [200, {'Content-Type' => 'application/vnd.apple.pkpass',
+              'Content-Disposition' => 'attachment',
               'filename' => "#{method_and_params[:params]['serialNumber']}.pkpass"}, [response]]
           else
             [204, {}, {}]
@@ -66,10 +70,10 @@ module Rack
         end
       end
 
-      return nil       
+      return nil
     end
 
-    private 
+    private
 
     def method_and_params_hash(method, path)
       parsed_path = path.split '/'
@@ -78,11 +82,11 @@ module Rack
         {:method => 'latest_pass',
           :params => {'passTypeIdentifier' => parsed_path[url_beginning + 2],
             'serialNumber' => parsed_path[url_beginning + 3]}}
-      else 
-        return_hash = {:method => method, :params => 
-          {'deviceLibraryIdentifier' => parsed_path[url_beginning + 2], 
+      else
+        return_hash = {:method => method, :params =>
+          {'deviceLibraryIdentifier' => parsed_path[url_beginning + 2],
             'passTypeIdentifier' => parsed_path[url_beginning + 4]}}
-          return_hash[:params]['serialNumber'] = parsed_path[url_beginning + 5] if 
+          return_hash[:params]['serialNumber'] = parsed_path[url_beginning + 5] if
           method == 'device_register_delete'
           return_hash
       end
@@ -91,4 +95,3 @@ module Rack
 
   end
 end
-
